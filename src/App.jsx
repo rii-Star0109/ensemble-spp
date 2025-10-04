@@ -1,68 +1,82 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
-
-// 임시 데이터
-const mockData = {
-    agencies: [
-        { id: 1, name: '앙상블 스퀘어' }, // 앙상블 스퀘어
-        { id: 2, name: '스타메이커 프로덕션' }, // 스타메이커 프로덕션
-        { id: 3, name: '코즈믹 프로덕션' } // 코즈믹 프로덕션
-    ],
-    groups: [
-        {
-            id: 1,
-            name: 'Fine',
-            agencyId: 1,
-            members: [
-                { id: 1, name: '벤쇼인 에이치', color: '#FFE0B2' },
-                { id: 2, name: '허버키 와타루', color: '#B3E5FC' },
-                { id: 3, name: '히메미야 토리', color: '#F8BBD0' },
-                { id: 4, name: '유치미 요츠무', color: '#E1BEE7' }
-            ],
-            songs: [
-                { id: 1, name: '곤나지 앉는 심포니아' },
-                { id: 2, name: 'Holy Angel\'s Carol' },
-                { id: 3, name: '남겨진 포르티시모' }
-            ]
-        },
-        {
-            id: 2,
-            name: 'Trickstar',
-            agencyId: 2,
-            members: [
-                { id: 5, name: '히다카 호쿠토', color: '#FFE0B2' },
-                { id: 6, name: '유키 마코토', color: '#B3E5FC' }
-            ],
-            songs: [
-                { id: 4, name: 'テスト曲1' },
-                { id: 5, name: 'テスト曲2' }
-            ]
-        }
-    ],
-    cards: [
-        { songId: 1, memberId: 1, imageUrl: 'https://via.placeholder.com/100', attribute: 'Brilliant', rarity: 5 },
-        { songId: 1, memberId: 1, imageUrl: 'https://via.placeholder.com/100', attribute: 'Sparkle', rarity: 5 },
-        { songId: 1, memberId: 2, imageUrl: 'https://via.placeholder.com/100', attribute: 'Glitter', rarity: 5 },
-        { songId: 1, memberId: 2, imageUrl: 'https://via.placeholder.com/100', attribute: 'Flash', rarity: 5 },
-        { songId: 1, memberId: 3, imageUrl: 'https://via.placeholder.com/100', attribute: 'Sparkle', rarity: 5 },
-        { songId: 1, memberId: 3, imageUrl: 'https://via.placeholder.com/100', attribute: 'Brilliant', rarity: 5 },
-        { songId: 1, memberId: 4, imageUrl: 'https://via.placeholder.com/100', attribute: 'Flash', rarity: 5 },
-        { songId: 1, memberId: 4, imageUrl: 'https://via.placeholder.com/100', attribute: 'Glitter', rarity: 5 },
-    ]
-}
+import { useCards } from './hooks/useCards'
 
 function App() {
-    const [selectedAgency, setSelectedAgency] = useState(null) // null = 전체
-    const [selectedGroup, setSelectedGroup] = useState(mockData.groups[0])
+    const {
+        agencies,
+        groups,
+        members,
+        songs,
+        cards,
+        loading,
+        error,
+        getMembersByGroup,
+        getSongsByGroup,
+        getCardsBySongAndMember,
+        getGroupsByAgency
+    } = useCards();
+
+    const [selectedAgency, setSelectedAgency] = useState(null)
+    const [selectedGroup, setSelectedGroup] = useState(null)
     const [selectedMembers, setSelectedMembers] = useState([])
     const [selectedAttributes, setSelectedAttributes] = useState([])
     const [selectedRarity, setSelectedRarity] = useState([])
     const [searchQuery, setSearchQuery] = useState('')
 
+    // 그룹이 로드되면 첫 번째 그룹 선택
+    useEffect(() => {
+        if (groups.length > 0 && !selectedGroup) {
+            setSelectedGroup(groups[0])
+        }
+    }, [groups, selectedGroup])
+
     // 소속사 필터링된 그룹 목록
-    const filteredGroups = selectedAgency
-        ? mockData.groups.filter(g => g.agencyId === selectedAgency)
-        : mockData.groups
+    const filteredGroups = getGroupsByAgency(selectedAgency)
+
+    // 선택된 그룹의 멤버와 곡
+    const groupMembers = selectedGroup ? getMembersByGroup(selectedGroup.id) : []
+    const groupSongs = selectedGroup ? getSongsByGroup(selectedGroup.id) : []
+
+    // 검색어로 곡 필터링
+    const filteredSongs = groupSongs.filter(song =>
+        song.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    // 로딩 중
+    if (loading) {
+        return (
+            <div className="app">
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    height: '100vh',
+                    fontSize: '20px'
+                }}>
+                    데이터 로딩 중...
+                </div>
+            </div>
+        )
+    }
+
+    // 에러 발생
+    if (error) {
+        return (
+            <div className="app">
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    height: '100vh',
+                    fontSize: '18px',
+                    color: 'red'
+                }}>
+                    에러 발생: {error}
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="app">
@@ -81,19 +95,16 @@ function App() {
                                 className="agency-select"
                                 value={selectedAgency || ''}
                                 onChange={(e) => {
-                                    const agencyId = e.target.value ? parseInt(e.target.value) : null
+                                    const agencyId = e.target.value || null
                                     setSelectedAgency(agencyId)
-                                    // 소속사 변경시 첫 번째 그룹으로 자동 선택
-                                    const newGroups = agencyId
-                                        ? mockData.groups.filter(g => g.agencyId === agencyId)
-                                        : mockData.groups
+                                    const newGroups = getGroupsByAgency(agencyId)
                                     if (newGroups.length > 0) {
                                         setSelectedGroup(newGroups[0])
                                     }
                                 }}
                             >
                                 <option value="">전체</option>
-                                {mockData.agencies.map(agency => (
+                                {agencies.map(agency => (
                                     <option key={agency.id} value={agency.id}>
                                         {agency.name}
                                     </option>
@@ -105,9 +116,9 @@ function App() {
                             <h4>그룹</h4>
                             <select
                                 className="group-select"
-                                value={selectedGroup.id}
+                                value={selectedGroup?.id || ''}
                                 onChange={(e) => {
-                                    const group = filteredGroups.find(g => g.id === parseInt(e.target.value))
+                                    const group = filteredGroups.find(g => g.id === e.target.value)
                                     setSelectedGroup(group)
                                 }}
                             >
@@ -132,9 +143,19 @@ function App() {
 
                         <div className="filter-group">
                             <h4>멤버</h4>
-                            {selectedGroup.members.map(member => (
+                            {groupMembers.map(member => (
                                 <label key={member.id}>
-                                    <input type="checkbox" />
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedMembers.includes(member.id)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedMembers([...selectedMembers, member.id])
+                                            } else {
+                                                setSelectedMembers(selectedMembers.filter(id => id !== member.id))
+                                            }
+                                        }}
+                                    />
                                     {member.name}
                                 </label>
                             ))}
@@ -142,65 +163,122 @@ function App() {
 
                         <div className="filter-group">
                             <h4>속성</h4>
-                            <label><input type="checkbox" /> Sparkle</label>
-                            <label><input type="checkbox" /> Brilliant</label>
-                            <label><input type="checkbox" /> Glitter</label>
-                            <label><input type="checkbox" /> Flash</label>
+                            {['Sparkle', 'Brilliant', 'Glitter', 'Flash'].map(attr => (
+                                <label key={attr}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedAttributes.includes(attr)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedAttributes([...selectedAttributes, attr])
+                                            } else {
+                                                setSelectedAttributes(selectedAttributes.filter(a => a !== attr))
+                                            }
+                                        }}
+                                    />
+                                    {attr}
+                                </label>
+                            ))}
                         </div>
 
                         <div className="filter-group">
                             <h4>레어도</h4>
-                            <label><input type="checkbox" /> ★4</label>
-                            <label><input type="checkbox" /> ★5</label>
+                            {[4, 5].map(rarity => (
+                                <label key={rarity}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedRarity.includes(rarity)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedRarity([...selectedRarity, rarity])
+                                            } else {
+                                                setSelectedRarity(selectedRarity.filter(r => r !== rarity))
+                                            }
+                                        }}
+                                    />
+                                    ★{rarity}
+                                </label>
+                            ))}
                         </div>
                     </div>
                 </aside>
 
                 <section className="content">
-                    <div className="group-title">
-                        <h2>{selectedGroup.name}</h2>
-                    </div>
+                    {selectedGroup && (
+                        <>
+                            <div className="group-title">
+                                <h2>{selectedGroup.name}</h2>
+                            </div>
 
-                    <div className="table-container">
-                        <table className="card-table">
-                            <thead>
-                            <tr>
-                                <th className="song-column">곡</th>
-                                {selectedGroup.members.map(member => (
-                                    <th key={member.id} style={{ backgroundColor: member.color }}>
-                                        {member.name}
-                                    </th>
-                                ))}
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {selectedGroup.songs.map(song => (
-                                <tr key={song.id}>
-                                    <td className="song-name">{song.name}</td>
-                                    {selectedGroup.members.map(member => {
-                                        const cards = mockData.cards.filter(
-                                            card => card.songId === song.id && card.memberId === member.id
-                                        )
-                                        return (
-                                            <td key={member.id} className="card-cell">
-                                                <div className="card-images">
-                                                    {cards.map((card, idx) => (
-                                                        <img
-                                                            key={idx}
-                                                            src={card.imageUrl}
-                                                            alt="카드"
-                                                            className={`card-img attribute-${card.attribute.toLowerCase()}`}
-                                                        />
-                                                    ))}
-                                                </div>
+                            <div className="table-container">
+                                <table className="card-table">
+                                    <thead>
+                                    <tr>
+                                        <th className="song-column">곡</th>
+                                        {groupMembers.map(member => (
+                                            <th key={member.id} style={{ backgroundColor: member.color }}>
+                                                {member.name}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {filteredSongs.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={groupMembers.length + 1} style={{ textAlign: 'center', padding: '20px' }}>
+                                                검색 결과가 없습니다
                                             </td>
-                                        )
-                                    })}
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                        </tr>
+                                    ) : (
+                                        filteredSongs.map(song => (
+                                            <tr key={song.id}>
+                                                <td className="song-name">{song.name}</td>
+                                                {groupMembers.map(member => {
+                                                    let memberCards = getCardsBySongAndMember(song.id, member.id)
+
+                                                    // 멤버 필터 적용
+                                                    if (selectedMembers.length > 0 && !selectedMembers.includes(member.id)) {
+                                                        memberCards = []
+                                                    }
+
+                                                    // 속성 필터 적용
+                                                    if (selectedAttributes.length > 0) {
+                                                        memberCards = memberCards.filter(card =>
+                                                            selectedAttributes.includes(card.attribute)
+                                                        )
+                                                    }
+
+                                                    // 레어도 필터 적용
+                                                    if (selectedRarity.length > 0) {
+                                                        memberCards = memberCards.filter(card =>
+                                                            selectedRarity.includes(card.rarity)
+                                                        )
+                                                    }
+
+                                                    return (
+                                                        <td key={member.id} className="card-cell">
+                                                            <div className="card-images">
+                                                                {memberCards.map((card) => (
+                                                                    <img
+                                                                        key={card.id}
+                                                                        src={card.imageUrl}
+                                                                        alt={`${member.name} - ${song.name}`}
+                                                                        className={`card-img attribute-${card.attribute.toLowerCase()}`}
+                                                                        title={`${card.attribute} ★${card.rarity}`}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                    )
+                                                })}
+                                            </tr>
+                                        ))
+                                    )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
                 </section>
             </main>
         </div>
